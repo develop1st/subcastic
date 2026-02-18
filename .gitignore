@@ -1,0 +1,27 @@
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
+# Local compose overrides (machine/user specific)
+docker-compose.local.yml
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# Runtime/state outputs
+state/**
+!state/.gitkeep
+
+# Generated media artifacts
+media/generated/**
+!media/generated/.gitkeep
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,14 @@
+services:
+  liquidsoap:
+    volumes:
+      - ./liquidsoap/radio.liq:/etc/liquidsoap/radio.liq:ro
+      - nas_music:/media/music:ro
+      - ./state:/state
+
+volumes:
+  nas_music:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER_IP},vers=${NFS_VERSION:-4},ro
+      device: :${NFS_EXPORT_PATH}

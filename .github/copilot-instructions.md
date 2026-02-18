@@ -30,7 +30,7 @@ Keep this structure stable unless explicitly instructed to refactor.
 - `.github/` : GitHub automation + agent instructions (this file)
 
 Do NOT place product documentation inside `.github/`.
-Do NOT create or modify files in `.vscode/`.
+Do NOT create or modify files in `.vscode/`, except `.vscode/settings.json`.
 
 ## Development Philosophy
 The project evolves in phases. Implement only what is required to satisfy the current phase’s acceptance criteria.
