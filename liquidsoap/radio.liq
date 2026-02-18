@@ -1,6 +1,6 @@
-set("log.stdout", true)
-set("log.file", true)
-set("log.file.path", "/state/liquidsoap.log")
+settings.log.stdout := true
+settings.log.file := true
+settings.log.file.path := "/state/liquidsoap.log"
 
 music_dir = environment.get("LIQ_MUSIC_DIR", default="/media/music")
 icecast_host = environment.get("LIQ_ICECAST_HOST", default="icecast")

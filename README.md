@@ -124,6 +124,32 @@ Expected behavior:
 - Liquidsoap connects to Icecast and starts mount `/radio.mp3`.
 - If `media/music` is empty, stream stays up and plays silence until files are added.
 
+### Phase 1 Acceptance Checks
+
+Run these checks after startup:
+
+```bash
+docker compose ps
+docker compose logs --tail=120 icecast
+docker compose logs --tail=120 liquidsoap
+curl -v http://localhost:8000/radio.mp3 --max-time 10 -o /dev/null
+```
+
+Pass criteria:
+- `icecast` and `liquidsoap` containers are `Up`.
+- Liquidsoap logs show successful connection to Icecast mount `/radio.mp3`.
+- Stream request returns `HTTP 200` and `Content-Type: audio/mpeg`.
+- Audio is audible from at least one client (browser or VLC).
+
+### Phase 1 Closeout Checklist
+
+- [ ] `docker compose up -d` bootstraps a working stream without manual edits.
+- [ ] Music in `media/music` (or configured host/NFS mount) plays continuously.
+- [ ] Stream is reachable on LAN via `http://<host-ip>:8000/radio.mp3`.
+- [ ] Container restarts recover stream automatically (`restart: unless-stopped`).
+- [ ] Logs are available through `docker compose logs` for both services.
+- [ ] 24-hour soak test completes without stream drop or container crash.
+
 ---
 
 ## Repository Structure
