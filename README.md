@@ -1,261 +1,125 @@
 # Subcastic
 
-Subcastic is a modular, containerized self-hosted radio platform built on Icecast and Liquidsoap.
+Subcastic is a segment-based personalized audio platform, not a broadcast station engine.
 
-Subcastic (substream + broadcast + fantastic) is evolving into a programmable, AI-native broadcast system.
+The platform assembles a continuous listening experience per user over HTTP by ordering pre-rendered audio segments from followed feeds.
 
-The project begins as a minimal continuous music stream and evolves toward an AI‑driven, programmable broadcast system with:
+## Architecture Status
 
-- Procedural AI-generated segments
-- Segment sharing and syndication
-- Listener call-in style participation
-- Monetization modules
+Subcastic is migrating from a broadcast-first runtime (Icecast + Liquidsoap) to a segment-native, HTTP-based model.
 
-This repository is structured for phased development and AI-assisted implementation using GPT‑5.3‑Codex / Copilot.
+- Core runtime target: segment storage + feed graph + personal stream assembly + playback API.
+- Deprecated as required runtime: mount-centric always-on broadcast chain.
+- Optional compatibility: export adapters that can render a feed to legacy broadcast surfaces.
 
----
+The migration baseline has been preserved on branch `legacy/liquidsoap-master`.
+All forward architecture work proceeds on the segment-native branch lineage.
 
-## Current Phase
+## Core Concepts
 
-**Phase 2 – Scheduling + Jingles + Insert Queue Foundation**
+### Segment
 
-Goal: Keep continuous playback while adding lightweight structure for jingles and insert/commercial playback.
+A segment is a pre-rendered audio object (for MVP, typically MP3) plus metadata.
 
-No AI generation.
-No federation.
+Required fields:
+- `segment_id`
+- `feed_id`
+- `publisher_id`
+- `audio_url`
+- `duration`
+- `created_at`
+- `metadata` (`title`, `description`, `tags`)
 
-Just a stable, always-on stream.
+Optional provenance fields:
+- `hash`
+- `signature`
+- `license`
 
----
+### Feed
 
-## Quick Start (Phase 1)
+A feed is an ordered collection of segment references with publisher-level metadata.
 
-1. Clone the repository.
-2. Copy environment defaults:
+Required fields:
+- `feed_id`
+- `publisher_id`
+- ordered list of `segment_ids`
+- feed metadata (`name`, `description`, `type`)
 
-   ```bash
-   cp .env.example .env
-   ```
+### Follow Graph
 
-   If your music lives outside the repo, set `HOST_MUSIC_DIR` in `.env`
-   (example on Windows: `HOST_MUSIC_DIR=Z:/subcastic/music`).
+Users subscribe to feeds. The follow graph is the subscription boundary for stream assembly.
 
-   Optional: for NAS setups, you can use the NFS override
-   (`docker-compose.nfs.yml`) instead of mapped drives.
+Required fields:
+- `user_id`
+- `followed_feed_ids`
 
-3. Place MP3 files in:
+Optional fields:
+- per-feed weight/priority
 
-   `media/music/`
+### Personal Stream Engine
 
-   Optional for Phase 2:
-   - `media/jingles/` for jingle tracks
-   - `media/inserts/` for commercials/inserts
+The stream engine computes ordered segment queues per user.
 
-4. Start the stack:
+Input:
+- `user_id`
 
-   ```bash
-   docker compose up -d
-   ```
+Processing:
+- fetch followed feeds
+- retrieve recent/unplayed segments
+- apply deterministic ordering rules (freshness, diversity, fairness)
 
-5. Open the stream:
+Output:
+- ordered queue of segment objects
 
-   ```
-   http://localhost:8000/radio.mp3
-   ```
+### Playback API (v1)
 
-   LAN devices can use:
+- `GET /stream/:user_id`
+  - returns a JSON queue of segment objects
+  - no global mount required
 
-   ```
-   http://<host-ip>:8000/radio.mp3
-   ```
+Optional extension:
+- server-side HLS playlist generation per user
 
-You should hear continuous playback.
+## Infrastructure Direction
 
-### Configuration Notes (Phase 2)
+Core assumptions for migration:
+- stateless HTTP API for stream assembly and playback responses
+- object storage for segment audio (`audio_url`), S3-compatible where practical
+- CDN-friendly static audio delivery
+- horizontal scaling by separating compute (assembly) from media transfer (static object serving)
 
-- Pinned images are used (no `latest`):
-   - `libretime/icecast:2.4.4`
-  - `savonet/liquidsoap:14b6d14`
-- Icecast config is mounted from `icecast/icecast.xml`.
-- Liquidsoap playout script is mounted from `liquidsoap/radio.liq`.
-- Music folder is mounted from `media/music/`.
-- Jingles folder is mounted from `media/jingles/`.
-- Inserts/commercials folder is mounted from `media/inserts/`.
-- MP3 encoding uses Liquidsoap FFmpeg encoder path on the official `savonet/liquidsoap` image.
-- Insert queue foundation is provided via Liquidsoap `request.queue`.
+## MVP Constraints (Migration)
 
-If you change passwords in `.env`, update `icecast/icecast.xml` to match source/admin/relay credentials.
+- Pre-rendered segments only
+- No procedural/TTS generation in this migration
+- No advanced reputation or trust scoring
+- Prioritize deterministic queue assembly and reliable playback
 
-### Optional: NAS via NFS
+## Repository Focus During Migration
 
-Docker Desktop on Windows may not reliably expose mapped network drives to containers.
-Use the NFS override so Docker mounts the NAS export directly:
+- `docs/` defines product and architecture source of truth
+- legacy Icecast/Liquidsoap assets remain isolated for compatibility and reference
+- new work should center on segment/feed/stream abstractions
 
-1. Set these in `.env`:
-   - `NFS_SERVER_IP` (NAS IP)
-   - `NFS_EXPORT_PATH` (NFS export path, e.g. `/volume1/music`)
-   - `NFS_VERSION` (`4` by default)
-2. Start with the NFS override:
+## Migration Notes
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.nfs.yml up -d
-```
+See `docs/migration.md` for contributor guidance on deprecations, boundaries, and implementation sequence.
 
-3. Verify files are visible inside the container:
+## Legacy Runtime (Deprecated Core)
 
-```bash
-docker compose exec liquidsoap ls -la /media/music
-```
+Legacy files remain in-repo for compatibility and controlled transition:
+- `docker-compose.yml`
+- `icecast/`
+- `liquidsoap/`
 
-On Synology, ensure NFS is enabled and the Docker host IP is allowed on the export.
-
-### Development Test Media (10–15s snippets)
-
-For faster iteration on transitions/rotation, generate short clips into a local ignored folder:
-
-```powershell
-./scripts/generate-test-media.ps1 -SnippetSeconds 15
-```
-
-By default, the helper now generates multiple snippets per source track (`-SnippetsPerSource 3`) with varied start offsets across each file.
-
-This creates snippet sources under:
-
-- `./.local/test-media/music`
-- `./.local/test-media/jingles`
-- `./.local/test-media/inserts`
-
-Then run the stack with test-media source overrides:
-
-```bash
-docker compose -f docker-compose.test-media.yml up -d
-```
-
-Notes:
-- `./.local/test-media/**` is git-ignored.
-- The helper uses local `ffmpeg` if installed; otherwise it falls back to Dockerized ffmpeg.
-- Default snippet length is `15` seconds; you can adjust with `-SnippetSeconds` (allowed range: 10-15).
-- Tune output density with `-SnippetsPerSource`, `-MaxMusicFiles`, `-MaxJingleFiles`, and `-MaxInsertFiles`.
-- Docker fallback reads source media from `docker-compose.yml` + `docker-compose.local.yml` by default (override with `-SourceComposeFiles`).
-
-### Dynamic Insert Queue
-
-Inserts are now driven by a Liquidsoap request queue (`insert_queue`) instead of a random insert playlist lane.
-
-Queue command server access:
-- Liquidsoap exposes a local-only command port on `127.0.0.1:${LIQ_SERVER_PORT}` (default `1234`).
-
-Enqueue an insert item:
-
-```powershell
-./scripts/enqueue-insert.ps1 -Uri /media/inserts/0001-rsi-spacewear-s01.mp3
-```
-
-Notes:
-- URIs are resolved inside the Liquidsoap container context.
-- For test media mode, use paths under `/media/inserts`.
-- For local/NAS mode, use paths visible at the configured `LIQ_INSERTS_DIR` mount.
-
-### Shared Defaults vs Local Overrides
-
-- Commit shared, portable defaults (`docker-compose.yml`, `.env.example`).
-- Keep user/machine-specific values in `.env` (already ignored by git).
-- For personal runtime tweaks, use local compose override files such as:
-   - `docker-compose.local.yml`
-   - `docker-compose.override.yml`
-- Those local override filenames are git-ignored to prevent accidental commits.
-
-### Minimal Verification
-
-```bash
-docker compose ps
-docker compose logs -f icecast
-docker compose logs -f liquidsoap
-```
-
-Expected behavior:
-- Liquidsoap connects to Icecast and starts mount `/radio.mp3`.
-- With no jingles/inserts available, stream continues with music-only fallback.
-
-### Phase 2 Acceptance Checks
-
-Run these checks after startup:
-
-```bash
-docker compose ps
-docker compose logs --tail=120 icecast
-docker compose logs --tail=120 liquidsoap
-curl -v http://localhost:8000/radio.mp3 --max-time 10 -o /dev/null
-```
-
-Pass criteria:
-- `icecast` and `liquidsoap` containers are `Up`.
-- Liquidsoap logs show successful connection to Icecast mount `/radio.mp3`.
-- Stream request returns `HTTP 200` and `Content-Type: audio/mpeg`.
-- Audio is audible from at least one client (browser or VLC).
-- When jingles/inserts are present, metadata/logs show lane rotation without stream drop.
-
-### Phase 2 Closeout Checklist
-
-- [ ] `docker compose up -d` bootstraps a working stream without manual edits.
-- [ ] Music in `media/music` (or configured host/NFS mount) plays continuously.
-- [ ] Jingles in `media/jingles` are inserted during normal playback.
-- [ ] Inserts/commercials in `media/inserts` are eligible for insertion.
-- [ ] Stream is reachable on LAN via `http://<host-ip>:8000/radio.mp3`.
-- [ ] Container restarts recover stream automatically (`restart: unless-stopped`).
-- [ ] Logs are available through `docker compose logs` for both services.
-- [ ] 24-hour soak test completes without stream drop or container crash.
-
----
-
-## Repository Structure
-
-```
-.
-├── docker-compose.yml
-├── icecast/
-├── liquidsoap/
-├── media/
-├── state/
-├── docs/
-│   ├── prd/
-│   ├── architecture/
-│   └── adr/
-└── .github/
-```
-
-### Key Directories
-
-- `icecast/` – Icecast configuration
-- `liquidsoap/` – Liquidsoap playout scripts
-- `media/` – Music and generated audio
-- `docs/prd/` – Product requirements
-- `.github/copilot-instructions.md` – AI agent guardrails
-
----
+These are no longer the required critical path for the product architecture.
 
 ## Development Workflow
 
-This project is designed for structured AI-assisted development.
-
 When implementing changes:
-
-1. Update or reference the appropriate PRD in `docs/prd/`.
-2. Use planning mode before coding.
-3. Keep changes scoped to the active phase.
-
----
-
-## Roadmap
-
-- Phase 1: Continuous folder-based music stream
-- Phase 2: Scheduling + jingles
-- Phase 3: AI-generated segments
-- Phase 4: Segment feeds + syndication
-- Phase 5: Listener interaction
-- Phase 6: Monetization
-
----
+1. Align with the active PRD in `docs/prd/`.
+2. Keep architecture segment-first and user-assembled.
+3. Preserve clear separation between storage, assembly, and delivery.
 
 ## License
 

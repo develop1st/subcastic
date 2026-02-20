@@ -1,128 +1,92 @@
-You are updating the Subcastic repository to reflect a major architectural migration.
+# Migration Guide: Broadcast-First to Segment-First
 
-Context:
+## Why This Migration Exists
 
-Subcastic is no longer built around Icecast + Liquidsoap as the primary runtime model. Historically, we treated the system as a broadcast-style continuous audio stream, where Liquidsoap orchestrated audio and Icecast exposed mount points. That paradigm is being deprecated as the default architecture.
+Subcastic is moving from a shared broadcast mount architecture (Icecast + Liquidsoap) to per-user stream assembly over HTTP.
 
-We are migrating to a segment-native, HTTP-based, per-user stream assembly model aligned with the “Personalized Continuous Audio” vision described in Overview.md :contentReference[oaicite:0]{index=0}.
+This migration is a product-level paradigm shift, not a cosmetic refactor.
 
-This is not a minor refactor. It is a paradigm shift.
+## Legacy Snapshot
 
-The new paradigm:
+The pre-migration Liquidsoap-first baseline is preserved on branch:
+- `legacy/liquidsoap-master`
 
-1) Segments are the atomic unit.
-   - A segment is a pre-rendered audio file (e.g., MP3) plus metadata.
-   - Feeds are ordered collections of segments.
-   - Users follow feeds.
-   - A personal stream is computed per user by assembling segments from followed feeds.
+All migration and forward work should continue from:
+- `feat/segment-http-migration` (or descendants)
 
-2) Playback is HTTP-based, not mount-based.
-   - No global broadcast mount as the core experience.
-   - No per-station Liquidsoap mixing as the primary mechanism.
-   - The client consumes a dynamically assembled queue of segment URLs (HLS or progressive HTTP).
-   - The server is responsible for queue assembly, ordering, and metadata.
+## Core Architectural Direction
 
-3) Icecast/Liquidsoap are no longer core dependencies.
-   - Remove them from the critical path.
-   - If retained, they become optional compatibility/export layers (e.g., rendering a curator feed as a public 24/7 stream).
-   - The system must function fully without them.
+Subcastic core runtime must now be:
+1. segment model
+2. feed model
+3. follow graph
+4. personal stream engine
+5. playback API (`GET /stream/:user_id`)
 
-Repository changes required:
+Core must function with no required dependency on Icecast/Liquidsoap.
 
-A) Remove or deprecate:
-   - Liquidsoap scripts as required runtime components.
-   - Icecast configuration as required infrastructure.
-   - Any “station” abstraction that assumes a shared broadcast mount as the primary product.
-   - Tight coupling between content generation and real-time audio mixing.
+## Explicit Deprecations
 
-B) Introduce or formalize:
+Deprecated as required runtime components:
+- Liquidsoap scripts as primary playout runtime
+- Icecast server config as primary delivery runtime
+- station-centric language that assumes a shared global mount
+- tight coupling between content generation and real-time mixing
 
-   1. Segment model
-      - segment_id
-      - feed_id
-      - publisher_id
-      - audio_url
-      - duration
-      - created_at
-      - metadata (title, description, tags)
-      - optional provenance fields (hash, signature, license)
+Deprecated does not mean immediate deletion.
+Legacy modules are retained and isolated for compatibility/export adapters.
 
-   2. Feed model
-      - feed_id
-      - publisher_id
-      - ordered list of segment_ids
-      - feed metadata (name, description, type: creator/curator/programmatic)
+## Required Separation of Concerns
 
-   3. Follow system
-      - user_id
-      - followed_feed_ids
-      - optional weight or priority
+Contributors must keep these boundaries explicit:
 
-   4. Personal Stream Engine (core service)
-      - Input: user_id
-      - Fetch followed feeds
-      - Retrieve recent/unplayed segments
-      - Apply ordering rules (freshness, diversity, fairness)
-      - Output: ordered queue of segment objects
+1. Content Storage
+   - segment metadata and feed/follow data
+   - object storage-backed audio URLs
 
-   5. Playback API
-      - GET /stream/:user_id
-        Returns JSON queue of segments (v1).
-      - Optional: server-side HLS playlist generation per user.
-      - No continuous mount required.
+2. Stream Assembly Logic
+   - deterministic ordering from followed feeds
+   - stateless compute service behavior
 
-C) Update documentation:
+3. Playback Delivery
+   - HTTP API queue responses
+   - optional HLS generation
+   - static object/CDN delivery for audio payloads
 
-   - Rewrite README to describe the new architecture:
-     “Subcastic is a segment-based personalized audio platform, not a broadcast station engine.”
-   - Add a section explaining the migration away from Icecast/Liquidsoap.
-   - Clearly separate:
-       - Core: segments, feeds, personal stream engine.
-       - Optional: broadcast export adapters.
+## MVP Constraints During Migration
 
-D) Infrastructure:
+In scope:
+- pre-rendered segments only
+- deterministic queue assembly and ordering
+- reliable HTTP playback queue contract
 
-   - Remove infrastructure assumptions that require:
-       - persistent streaming daemon
-       - mount-based distribution
-   - Replace with:
-       - stateless HTTP API
-       - object storage for audio (e.g., S3-compatible)
-       - CDN-friendly delivery
-   - Ensure the system is horizontally scalable:
-       - Stream assembly is compute.
-       - Audio delivery is static object serving.
+Out of scope:
+- procedural/TTS generation
+- advanced reputation/trust logic
+- monetization features
 
-E) MVP Constraints:
+## Contributor Checklist
 
-   - Only support pre-rendered segments initially.
-   - Do not implement procedural/TTS rendering in this migration.
-   - Do not implement advanced reputation logic yet.
-   - Focus on deterministic queue assembly and reliable playback.
+Before merging migration-related work:
+- [ ] Segment/feed/follow models are explicit and documented.
+- [ ] `GET /stream/:user_id` contract is implemented or updated consistently.
+- [ ] No new core dependency on mount-based streaming daemons is introduced.
+- [ ] Docs describe Icecast/Liquidsoap as optional compatibility layers.
+- [ ] Storage, assembly, and delivery responsibilities remain modular.
 
-F) Codebase goals:
+## Existing Legacy Assets
 
-   - Make “segment” the central abstraction.
-   - Make “feed” the subscription boundary.
-   - Make “personal stream assembly” the core differentiator.
-   - Remove station-centric language where it conflicts with the new model.
-   - Keep architecture modular so a broadcast adapter can be layered later.
+Legacy runtime assets currently retained in-repo:
+- `docker-compose.yml` and overrides
+- `icecast/`
+- `liquidsoap/`
+- related helper scripts
 
-Deliverables from this update:
+These may be adapted into optional broadcast export tooling, but are no longer the core architecture.
 
-1. Updated architecture diagram (in docs).
-2. Refactored domain models reflecting segment/feed/stream.
-3. Removal or deprecation of Liquidsoap/Icecast from required runtime.
-4. Clear migration notes for contributors.
-5. Clean separation between:
-   - Content storage
-   - Stream assembly logic
-   - Playback delivery
+## Documentation Map
 
-Important:
-
-Do not simply delete old code blindly. Mark deprecated modules clearly and isolate them. The goal is to evolve the system from “broadcast-first” to “segment-first, user-assembled streaming.”
-
-The resulting repository should make it obvious that Subcastic’s core innovation is per-user continuous audio assembled from segments over HTTP, not real-time server-side mixing.
-
-Prioritize clarity of architecture over feature completeness.
+- Core architecture diagram: `docs/architecture/segment-native-architecture.md`
+- Domain models: `docs/architecture/domain-models.md`
+- Product requirements: `docs/prd/ai-radio-mvp-prd.md`
+- Repository overview: `README.md`

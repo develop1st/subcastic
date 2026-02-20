@@ -1,214 +1,204 @@
 # Product Requirements Document (PRD)
 
 ## Product Name
-AI Radio MVP – Foundational Broadcast Node
+Subcastic MVP – Segment-Native Personalized Continuous Audio
 
 ## Objective
-Stand up a minimal, reproducible, self-hosted broadcast node capable of streaming a continuous radio feed sourced from a local media folder containing music files.
+Deliver a minimal, reproducible, segment-first platform that assembles a continuous listening queue per user over HTTP.
 
-This MVP establishes the foundational infrastructure required for future expansion into:
-- AI-generated segments
-- Segment sharing
-- Listener call-in automation
-- Feed subscription and curation
-- Monetization modules
+The MVP establishes the core architecture for:
+- segment publishing
+- feed composition
+- user follows
+- deterministic personal stream assembly
 
-The immediate goal is reliability and simplicity, not intelligence.
+The immediate goal is reliability and clarity of architecture, not advanced generation intelligence.
 
 ---
 
-## Scope (MVP Phase 1)
+## Scope (Migration MVP)
 
 The system must:
-1. Run entirely via Docker.
-2. Stream a continuous MP3 audio feed.
-3. Source audio from a mounted local media folder.
-4. Be accessible on the local network.
-5. Require minimal manual configuration to operate.
+1. Treat pre-rendered segments as the atomic unit.
+2. Organize segments into feeds.
+3. Allow users to follow feeds.
+4. Compute an ordered queue of segments per user.
+5. Expose playback data over HTTP via `GET /stream/:user_id`.
+
+The system must function without Icecast/Liquidsoap in the critical path.
 
 The system does NOT yet need:
-- AI generation
-- Scheduling logic
-- Feed ingestion
-- Authentication
-- Monetization
-- Reverse proxy configuration
-- Analytics
+- procedural/TTS segment generation
+- advanced reputation or trust systems
+- monetization logic
+- complex social/discovery features
+- real-time server-side audio mixing as a required core feature
 
 ---
 
 ## Functional Requirements
 
-### 1. Containerized Deployment
+### 1. Segment Model
 
-The system must include:
-- docker-compose.yml
-- Icecast service
-- Liquidsoap service
+A segment must include:
+- `segment_id`
+- `feed_id`
+- `publisher_id`
+- `audio_url`
+- `duration`
+- `created_at`
+- `metadata` (`title`, `description`, `tags`)
 
-Both services must:
-- Restart automatically on failure
-- Share a Docker network
-- Be configurable via environment variables
+Optional provenance fields:
+- `hash`
+- `signature`
+- `license`
 
----
+### 2. Feed Model
 
-### 2. Icecast Server
+A feed must include:
+- `feed_id`
+- `publisher_id`
+- ordered list of `segment_ids`
+- feed metadata (`name`, `description`, `type`)
 
-Icecast must:
-- Expose port 8000
-- Provide a mount point (e.g., /radio.mp3)
-- Require source authentication
-- Provide basic web status interface
+`type` values for MVP:
+- `creator`
+- `curator`
+- `programmatic`
 
-Configuration must:
-- Be externalized via mounted config file
-- Allow easy password modification
+### 3. Follow System
 
----
+Follow data must include:
+- `user_id`
+- `followed_feed_ids`
 
-### 3. Liquidsoap Playout Engine
+Optional:
+- per-feed weight/priority
 
-Liquidsoap must:
-- Read from /media/music
-- Randomly rotate tracks
-- Continuously loop without stopping
-- Crossfade between tracks
-- Output MP3 at 128kbps
-- Connect to Icecast mount
+### 4. Personal Stream Engine
 
-It must:
-- Tolerate empty folder gracefully (log warning)
-- Reload playlist if folder contents change
+Input:
+- `user_id`
 
----
+Processing requirements:
+1. Fetch user followed feeds.
+2. Retrieve recent/unplayed segments from those feeds.
+3. Apply deterministic ordering rules for freshness, diversity, and fairness.
+4. Return an ordered queue of segment objects.
 
-### 4. Media Folder
+Output:
+- JSON-serializable segment queue
 
-Host machine must expose:
-./media/music
+### 5. Playback API
 
-Requirements:
-- Supports mp3 files
-- Can be modified while running
-- New files picked up automatically
+Required endpoint:
+- `GET /stream/:user_id`
 
----
+Response:
+- JSON payload containing ordered segment queue
 
-### 5. Network Accessibility
-
-The stream must be playable via:
-http://<host-ip>:8000/radio.mp3
-
-It must work with:
-- VLC
-- Browser audio player
-- curl test
+Optional extension (not required for MVP completion):
+- server-side per-user HLS playlist generation
 
 ---
 
 ## Non-Functional Requirements
 
 ### Reliability
-- Stream must auto-recover from container restart
-- No manual steps after docker compose up
+- Queue assembly is deterministic for identical inputs.
+- API fails clearly on invalid user/feed/segment references.
 
-### Performance
-- Support minimum 50 concurrent LAN listeners
+### Scalability
+- Stream assembly is stateless compute.
+- Audio delivery is static object delivery and CDN-friendly.
 
 ### Simplicity
-- Entire system bootstraps with a single command:
-  docker compose up -d
+- Keep implementation modular with clear seams:
+  - content storage
+  - stream assembly logic
+  - playback delivery API
 
 ### Observability
-- Logs must be visible via docker logs
-- Liquidsoap log file mounted to host
+- Core services log to stdout/stderr.
+- Misconfiguration and missing data fail loudly and clearly.
 
 ---
 
 ## System Architecture (MVP)
 
-Host Machine
-│
-├── Docker
-│   ├── Icecast Container
-│   └── Liquidsoap Container
-│
-└── /media/music (mounted volume)
+Primary flow:
+Publisher Segments → Feed Ordering → User Follows → Personal Stream Engine → `/stream/:user_id` JSON Queue → Client Playback via Segment URLs
 
-Flow:
-Music Folder → Liquidsoap → Icecast → Listeners
+Infrastructure shape:
+- stateless HTTP API tier
+- segment metadata store
+- object storage for audio files
+- optional CDN for segment assets
+
+Legacy broadcast runtimes (Icecast/Liquidsoap) may remain only as optional export adapters.
 
 ---
 
 ## Success Criteria
 
-The MVP is considered complete when:
+The migration MVP is complete when:
 
-1. A user can clone the repo.
-2. Place MP3 files in ./media/music.
-3. Run docker compose up -d.
-4. Visit http://localhost:8000/radio.mp3.
-5. Hear continuous music playback.
+1. Segment, feed, and follow models are formalized in-repo.
+2. Personal stream engine algorithm is documented and deterministic.
+3. `GET /stream/:user_id` contract is defined and testable.
+4. Documentation clearly states Icecast/Liquidsoap are not required core runtime.
+5. Architecture explicitly separates storage, assembly, and delivery.
 
 ---
 
 ## Future Phases (Not In Scope Yet)
 
-Phase 2 – Scheduling
-- Add jingles
-- Add hourly structure
-- Add request queue
+Phase 2 – Runtime Hardening
+- caching strategies
+- queue pagination and replay state
 
-Phase 3 – AI Generation
-- Segment generator
-- Dynamic insertion
+Phase 3 – AI Segment Creation
+- procedural/TTS generation pipelines
+- moderation and provenance controls
 
-Phase 4 – Feed & Syndication
-- Segment feed ingestion
-- Shareable segment spec
+Phase 4 – Syndication
+- feed sharing and external ingestion/export
 
 Phase 5 – Listener Interaction
-- Call-in submission endpoint
-- Moderation queue
+- submission flows and moderation queues
 
 Phase 6 – Monetization
-- Ad insertion engine
-- Sponsor management
+- sponsor placement and revenue modules
 
 ---
 
 ## Risks
 
-- Incorrect Icecast credentials blocking stream
-- Audio codec mismatch
-- Docker networking misconfiguration
-- Folder permission issues
+- Overfitting stream ordering rules too early
+- Coupling queue assembly with storage specifics
+- Leaving legacy broadcast assumptions in core docs/code
 
 Mitigation:
-- Provide example config
-- Use pinned container versions
-- Clear README
+- deterministic, minimal queue policy first
+- strict separation of interfaces between modules
+- explicit deprecation/compatibility boundaries for legacy runtime
 
 ---
 
 ## Deliverables
 
-Repository containing:
-- docker-compose.yml
-- icecast.xml
-- radio.liq
-- README.md
-- media/music directory
+Repository artifacts must include:
+- updated architecture docs and diagram
+- migration notes for contributors
+- formal domain models for segment/feed/follow/stream
+- explicit legacy runtime deprecation posture
 
 ---
 
 ## Definition of Done
 
-The system runs for 24 hours continuously without:
-- Stream drop
-- Container crash
-- Manual intervention
+Subcastic is unambiguously presented and implemented as a segment-first personalized HTTP playback platform.
 
-This establishes the foundation for procedural AI radio evolution.
+Legacy broadcast tooling is isolated as optional compatibility infrastructure, not core runtime.
 
