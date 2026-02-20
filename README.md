@@ -17,12 +17,11 @@ This repository is structured for phased development and AI-assisted implementat
 
 ## Current Phase
 
-**Phase 1 – Minimal Continuous Radio Feed**
+**Phase 2 – Scheduling + Jingles + Insert Queue Foundation**
 
-Goal: Stand up a Dockerized Icecast + Liquidsoap stack that streams music from a local media folder.
+Goal: Keep continuous playback while adding lightweight structure for jingles and insert/commercial playback.
 
 No AI generation.
-No scheduling.
 No federation.
 
 Just a stable, always-on stream.
@@ -48,6 +47,10 @@ Just a stable, always-on stream.
 
    `media/music/`
 
+   Optional for Phase 2:
+   - `media/jingles/` for jingle tracks
+   - `media/inserts/` for commercials/inserts
+
 4. Start the stack:
 
    ```bash
@@ -68,7 +71,7 @@ Just a stable, always-on stream.
 
 You should hear continuous playback.
 
-### Configuration Notes (Phase 1)
+### Configuration Notes (Phase 2)
 
 - Pinned images are used (no `latest`):
    - `libretime/icecast:2.4.4`
@@ -76,7 +79,10 @@ You should hear continuous playback.
 - Icecast config is mounted from `icecast/icecast.xml`.
 - Liquidsoap playout script is mounted from `liquidsoap/radio.liq`.
 - Music folder is mounted from `media/music/`.
+- Jingles folder is mounted from `media/jingles/`.
+- Inserts/commercials folder is mounted from `media/inserts/`.
 - MP3 encoding uses Liquidsoap FFmpeg encoder path on the official `savonet/liquidsoap` image.
+- Insert queue foundation is provided via Liquidsoap `request.queue`.
 
 If you change passwords in `.env`, update `icecast/icecast.xml` to match source/admin/relay credentials.
 
@@ -103,6 +109,53 @@ docker compose exec liquidsoap ls -la /media/music
 
 On Synology, ensure NFS is enabled and the Docker host IP is allowed on the export.
 
+### Development Test Media (10–15s snippets)
+
+For faster iteration on transitions/rotation, generate short clips into a local ignored folder:
+
+```powershell
+./scripts/generate-test-media.ps1 -SnippetSeconds 15
+```
+
+By default, the helper now generates multiple snippets per source track (`-SnippetsPerSource 3`) with varied start offsets across each file.
+
+This creates snippet sources under:
+
+- `./.local/test-media/music`
+- `./.local/test-media/jingles`
+- `./.local/test-media/inserts`
+
+Then run the stack with test-media source overrides:
+
+```bash
+docker compose -f docker-compose.test-media.yml up -d
+```
+
+Notes:
+- `./.local/test-media/**` is git-ignored.
+- The helper uses local `ffmpeg` if installed; otherwise it falls back to Dockerized ffmpeg.
+- Default snippet length is `15` seconds; you can adjust with `-SnippetSeconds` (allowed range: 10-15).
+- Tune output density with `-SnippetsPerSource`, `-MaxMusicFiles`, `-MaxJingleFiles`, and `-MaxInsertFiles`.
+- Docker fallback reads source media from `docker-compose.yml` + `docker-compose.local.yml` by default (override with `-SourceComposeFiles`).
+
+### Dynamic Insert Queue
+
+Inserts are now driven by a Liquidsoap request queue (`insert_queue`) instead of a random insert playlist lane.
+
+Queue command server access:
+- Liquidsoap exposes a local-only command port on `127.0.0.1:${LIQ_SERVER_PORT}` (default `1234`).
+
+Enqueue an insert item:
+
+```powershell
+./scripts/enqueue-insert.ps1 -Uri /media/inserts/0001-rsi-spacewear-s01.mp3
+```
+
+Notes:
+- URIs are resolved inside the Liquidsoap container context.
+- For test media mode, use paths under `/media/inserts`.
+- For local/NAS mode, use paths visible at the configured `LIQ_INSERTS_DIR` mount.
+
 ### Shared Defaults vs Local Overrides
 
 - Commit shared, portable defaults (`docker-compose.yml`, `.env.example`).
@@ -122,9 +175,9 @@ docker compose logs -f liquidsoap
 
 Expected behavior:
 - Liquidsoap connects to Icecast and starts mount `/radio.mp3`.
-- If `media/music` is empty, stream stays up and plays silence until files are added.
+- With no jingles/inserts available, stream continues with music-only fallback.
 
-### Phase 1 Acceptance Checks
+### Phase 2 Acceptance Checks
 
 Run these checks after startup:
 
@@ -140,11 +193,14 @@ Pass criteria:
 - Liquidsoap logs show successful connection to Icecast mount `/radio.mp3`.
 - Stream request returns `HTTP 200` and `Content-Type: audio/mpeg`.
 - Audio is audible from at least one client (browser or VLC).
+- When jingles/inserts are present, metadata/logs show lane rotation without stream drop.
 
-### Phase 1 Closeout Checklist
+### Phase 2 Closeout Checklist
 
 - [ ] `docker compose up -d` bootstraps a working stream without manual edits.
 - [ ] Music in `media/music` (or configured host/NFS mount) plays continuously.
+- [ ] Jingles in `media/jingles` are inserted during normal playback.
+- [ ] Inserts/commercials in `media/inserts` are eligible for insertion.
 - [ ] Stream is reachable on LAN via `http://<host-ip>:8000/radio.mp3`.
 - [ ] Container restarts recover stream automatically (`restart: unless-stopped`).
 - [ ] Logs are available through `docker compose logs` for both services.

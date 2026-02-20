@@ -13,6 +13,9 @@ This document defines how AI coding agents (Copilot/Codex) should behave when pl
 
 3) This file governs agent behavior, repo conventions, and guardrails.
 
+4) External API/operator references live in `docs/references.md`.
+- For Liquidsoap changes, treat `docs/references.md` links as mandatory verification sources.
+
 Never invent scope beyond the active PRD phase unless the user explicitly asks.
 
 ## Repo Structure
@@ -64,6 +67,9 @@ When asked to plan:
 - Keep Liquidsoap focused on playout and stream output.
 - Prefer simple, stable scripts.
 - Do not embed heavy feed ingestion logic inside Liquidsoap; instead, introduce a separate sidecar/service when needed.
+- Before changing Liquidsoap operators (e.g. `mksafe`, `fallback`, `rotate`, `sequence`, `random`, `crossfade`), verify behavior and type/fallibility constraints against the docs in `docs/references.md`.
+- If an operator behavior is uncertain, check references first and then implement; do not guess.
+- When touching `liquidsoap/*.liq`, validate runtime behavior from logs after restart and confirm the change matches documented operator semantics.
 
 ### Icecast
 - Keep config minimal and explicit.

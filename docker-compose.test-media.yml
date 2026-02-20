@@ -30,24 +30,16 @@ services:
       LIQ_ICECAST_MOUNT: ${LIQ_ICECAST_MOUNT:-/radio.mp3}
       LIQ_ICECAST_PASSWORD: ${LIQ_ICECAST_PASSWORD:-sourcepass}
       LIQ_SERVER_PORT: ${LIQ_SERVER_PORT:-1234}
-      LIQ_MUSIC_DIR: ${LIQ_MUSIC_DIR:-/media/music}
-      LIQ_JINGLES_DIR: ${LIQ_JINGLES_DIR:-/media/jingles}
-      LIQ_INSERTS_DIR: ${LIQ_INSERTS_DIR:-/media/inserts}
+      LIQ_MUSIC_DIR: /media/music
+      LIQ_JINGLES_DIR: /media/jingles
+      LIQ_INSERTS_DIR: /media/inserts
       LIQ_BITRATE: ${LIQ_BITRATE:-128}
       LIQ_MUSIC_WEIGHT: ${LIQ_MUSIC_WEIGHT:-6}
+      LIQ_TEST_MEDIA_MODE: "1"
     command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
     volumes:
       - ./liquidsoap/radio.liq:/etc/liquidsoap/radio.liq:ro
-      - type: bind
-        source: ${HOST_MUSIC_DIR:-./media/music}
-        target: /media/music
-        read_only: true
-      - type: bind
-        source: ${HOST_JINGLES_DIR:-./media/jingles}
-        target: /media/jingles
-        read_only: true
-      - type: bind
-        source: ${HOST_INSERTS_DIR:-./media/inserts}
-        target: /media/inserts
-        read_only: true
+      - ./.local/test-media/music:/media/music:ro
+      - ./.local/test-media/jingles:/media/jingles:ro
+      - ./.local/test-media/inserts:/media/inserts:ro
       - ./state:/state

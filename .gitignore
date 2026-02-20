@@ -16,6 +16,9 @@ state/**
 media/generated/**
 !media/generated/.gitkeep
 
+# Local dev test media (generated snippets)
+.local/test-media/**
+
 # Logs and temp files
 *.log
 *.tmp
