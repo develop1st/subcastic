@@ -1,0 +1,11 @@
+{
+  "name": "@subcastic/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "node -e \"console.log('stub: add frontend build pipeline')\"",
+    "test": "node --test"
+  }
+}
