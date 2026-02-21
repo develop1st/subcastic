@@ -4,124 +4,91 @@ Subcastic is a segment-based personalized audio platform, not a broadcast statio
 
 The platform assembles a continuous listening experience per user over HTTP by ordering pre-rendered audio segments from followed feeds.
 
-## Architecture Status
+## Migration Status
 
-Subcastic is migrating from a broadcast-first runtime (Icecast + Liquidsoap) to a segment-native, HTTP-based model.
+The legacy broadcast runtime (Icecast + Liquidsoap) has been removed from this branch because it is preserved in `legacy/liquidsoap-master`.
 
-- Core runtime target: segment storage + feed graph + personal stream assembly + playback API.
-- Deprecated as required runtime: mount-centric always-on broadcast chain.
-- Optional compatibility: export adapters that can render a feed to legacy broadcast surfaces.
+Active implementation on this branch is now a JavaScript monorepo focused on the segment-first HTTP architecture.
 
-The migration baseline has been preserved on branch `legacy/liquidsoap-master`.
-All forward architecture work proceeds on the segment-native branch lineage.
+## Monorepo Layout
 
-## Core Concepts
+```text
+apps/
+  api/      # Node HTTP API stub (`GET /health`, `GET /stream/:user_id`)
+  web/      # React app stub for playback UX
+docs/       # Product and architecture references
+packages/
+  shared/   # Cross-app shared constants and types (stub)
+```
 
-### Segment
+## Getting Started
 
-A segment is a pre-rendered audio object (for MVP, typically MP3) plus metadata.
+### Prerequisites
 
-Required fields:
-- `segment_id`
-- `feed_id`
-- `publisher_id`
-- `audio_url`
-- `duration`
-- `created_at`
-- `metadata` (`title`, `description`, `tags`)
+- Node.js 20+
+- npm 10+
 
-Optional provenance fields:
-- `hash`
-- `signature`
-- `license`
+### Install
 
-### Feed
+```bash
+npm install
+```
 
-A feed is an ordered collection of segment references with publisher-level metadata.
+### Run API
 
-Required fields:
-- `feed_id`
-- `publisher_id`
-- ordered list of `segment_ids`
-- feed metadata (`name`, `description`, `type`)
+```bash
+npm run dev:api
+```
 
-### Follow Graph
+API defaults to `http://localhost:3001`.
 
-Users subscribe to feeds. The follow graph is the subscription boundary for stream assembly.
+### Run Web App
 
-Required fields:
-- `user_id`
-- `followed_feed_ids`
+```bash
+npm run dev:web
+```
 
-Optional fields:
-- per-feed weight/priority
+Web app defaults to `http://localhost:5173` (Vite dev server).
 
-### Personal Stream Engine
+## API Stub Contract
 
-The stream engine computes ordered segment queues per user.
+### `GET /health`
 
-Input:
-- `user_id`
+Returns:
 
-Processing:
-- fetch followed feeds
-- retrieve recent/unplayed segments
-- apply deterministic ordering rules (freshness, diversity, fairness)
+```json
+{ "status": "ok" }
+```
 
-Output:
-- ordered queue of segment objects
+### `GET /stream/:user_id`
 
-### Playback API (v1)
+Returns a deterministic stub queue shaped like the migration target contract:
 
-- `GET /stream/:user_id`
-  - returns a JSON queue of segment objects
-  - no global mount required
+```json
+{
+  "user_id": "user_123",
+  "generated_at": "2026-01-01T00:00:00.000Z",
+  "queue": [
+    {
+      "segment_id": "seg_001",
+      "feed_id": "feed_news",
+      "publisher_id": "pub_daily",
+      "audio_url": "https://cdn.example.com/audio/seg_001.mp3",
+      "duration": 42,
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "metadata": {
+        "title": "Morning Brief",
+        "description": "Stub segment for stream API bootstrapping.",
+        "tags": ["news", "mvp"]
+      }
+    }
+  ]
+}
+```
 
-Optional extension:
-- server-side HLS playlist generation per user
+## Reference Docs
 
-## Infrastructure Direction
-
-Core assumptions for migration:
-- stateless HTTP API for stream assembly and playback responses
-- object storage for segment audio (`audio_url`), S3-compatible where practical
-- CDN-friendly static audio delivery
-- horizontal scaling by separating compute (assembly) from media transfer (static object serving)
-
-## MVP Constraints (Migration)
-
-- Pre-rendered segments only
-- No procedural/TTS generation in this migration
-- No advanced reputation or trust scoring
-- Prioritize deterministic queue assembly and reliable playback
-
-## Repository Focus During Migration
-
-- `docs/` defines product and architecture source of truth
-- legacy Icecast/Liquidsoap assets remain isolated for compatibility and reference
-- new work should center on segment/feed/stream abstractions
-
-## Migration Notes
-
-See `docs/migration.md` for contributor guidance on deprecations, boundaries, and implementation sequence.
-
-## Legacy Runtime (Deprecated Core)
-
-Legacy files remain in-repo for compatibility and controlled transition:
-- `docker-compose.yml`
-- `icecast/`
-- `liquidsoap/`
-
-These are no longer the required critical path for the product architecture.
-
-## Development Workflow
-
-When implementing changes:
-1. Align with the active PRD in `docs/prd/`.
-2. Keep architecture segment-first and user-assembled.
-3. Preserve clear separation between storage, assembly, and delivery.
-
-## License
-
-TBD
-
+- `docs/migration.md`
+- `docs/architecture/segment-native-architecture.md`
+- `docs/architecture/domain-models.md`
+- `docs/prd/ai-radio-mvp-prd.md`
