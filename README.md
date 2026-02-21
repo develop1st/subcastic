@@ -66,6 +66,9 @@ Returns:
 
 ### `GET /stream/:user_id`
 
+Optional query params:
+- `limit` (1-50, default 10)
+
 Returns a deterministic stub queue shaped like the migration target contract:
 
 ```json
