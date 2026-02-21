@@ -15,7 +15,7 @@ Active implementation on this branch is now a JavaScript monorepo focused on the
 ```text
 apps/
   api/      # Node HTTP API stub (`GET /health`, `GET /stream/:user_id`)
-  web/      # Frontend app stub for playback UX
+  web/      # React app stub for playback UX
 docs/       # Product and architecture references
 packages/
   shared/   # Cross-app shared constants and types (stub)
@@ -48,7 +48,7 @@ API defaults to `http://localhost:3001`.
 npm run dev:web
 ```
 
-Web app defaults to `http://localhost:3000`.
+Web app defaults to `http://localhost:5173` (Vite dev server).
 
 ## API Stub Contract
 
