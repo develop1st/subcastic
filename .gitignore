@@ -3,10 +3,11 @@
 .env.*
 !.env.example
 
-# Local compose overrides (machine/user specific)
-docker-compose.local.yml
-docker-compose.override.yml
-docker-compose.*.local.yml
+# Node modules and build outputs
+node_modules/
+**/node_modules/
+dist/
+coverage/
 
 # Runtime/state outputs
 state/**
